@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/seoulpro/express-static-l10n/security/advisories/new
+    about: Report vulnerabilities privately, as described in SECURITY.md.

@@ -1,0 +1,42 @@
+name: Bug report
+description: Report incorrect localization, request handling, or package behavior.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not report path traversal, injection, locale spoofing, or file
+        disclosure details here. Use the private process in
+        [SECURITY.md](../../SECURITY.md).
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Package version or commit you are using.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Node.js and Express versions.
+      placeholder: "Node.js 22.x, Express 5.2.x"
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened
+      description: What you observed and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: >
+        Include the smallest HTML, catalog, middleware configuration, and
+        request that reproduce the problem. Remove private data and URLs.
+      render: js
+    validations:
+      required: true

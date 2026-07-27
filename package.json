@@ -1,0 +1,87 @@
+{
+  "name": "express-static-l10n",
+  "version": "0.1.0",
+  "description": "Localize existing static HTML at request time with Express.",
+  "author": "Limsumin",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/seoulpro/express-static-l10n.git"
+  },
+  "bugs": {
+    "url": "https://github.com/seoulpro/express-static-l10n/issues"
+  },
+  "homepage": "https://github.com/seoulpro/express-static-l10n#readme",
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "CONTRIBUTING.md",
+    "SECURITY.md",
+    "docs/design-notes.md"
+  ],
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --sourcemap --clean && tsc -p tsconfig.build.json --emitDeclarationOnly",
+    "check:package": "node scripts/check-package.mjs",
+    "check": "tsc --noEmit",
+    "format": "biome format --write --files-ignore-unknown=true .",
+    "format:check": "biome format --files-ignore-unknown=true .",
+    "lint": "biome lint --files-ignore-unknown=true .",
+    "test": "npm run test:unit",
+    "test:package": "node scripts/verify-package.mjs",
+    "test:unit": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "verify": "npm run format:check && npm run lint && npm run check && npm run test:coverage && npm run build && npm run check:package && npm run test:package",
+    "prepack": "npm run build",
+    "prepublishOnly": "npm run verify"
+  },
+  "keywords": [
+    "express",
+    "html",
+    "i18n",
+    "l10n",
+    "localization",
+    "middleware",
+    "static"
+  ],
+  "dependencies": {
+    "parse5": "^8.0.1"
+  },
+  "peerDependencies": {
+    "express": ">=4.22.2 <5 || >=5.2.1 <6"
+  },
+  "overrides": {
+    "esbuild": "^0.28.1"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.5",
+    "@biomejs/biome": "^2.5.5",
+    "@types/express": "^5.0.6",
+    "@types/node": "^24.0.0",
+    "@types/supertest": "^7.2.1",
+    "@vitest/coverage-v8": "^4.1.10",
+    "express": "^5.2.1",
+    "express4": "npm:express@^4.22.2",
+    "publint": "^0.3.22",
+    "supertest": "^7.2.2",
+    "tsup": "^8.5.1",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
+  }
+}

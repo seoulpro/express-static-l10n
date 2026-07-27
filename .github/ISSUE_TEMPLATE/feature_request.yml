@@ -1,0 +1,30 @@
+name: Feature request
+description: Propose a focused change to the localization contract.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Changes to HTML attributes, locale negotiation, catalog providers, or
+        middleware defaults should be discussed before implementation.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What limitation or use case is not handled by the current API?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: Describe the API and behavior you would like to add or change.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Describe adapter-side or application-side approaches you considered.
+    validations:
+      required: false
