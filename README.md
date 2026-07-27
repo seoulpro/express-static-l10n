@@ -71,6 +71,9 @@ locales/
 Locale detection is `?lang=` / `?locale=`, then the `locale` cookie, then
 `Accept-Language`, then `defaultLocale`. The order and names are configurable.
 
+A runnable version of this setup, with English and Korean catalogs, lives in
+[`examples/basic-site`](./examples/basic-site/README.md).
+
 ## HTML contract
 
 Text is replaced by `data-i18n`:
