@@ -1,5 +1,7 @@
 # express-static-l10n
 
+[![npm version](https://img.shields.io/npm/v/express-static-l10n.svg)](https://www.npmjs.com/package/express-static-l10n)
+
 Localize existing static HTML at request time with Express—without moving the
 site into a template engine or shipping a browser translation runtime.
 

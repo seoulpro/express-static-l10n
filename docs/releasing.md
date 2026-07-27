@@ -18,8 +18,8 @@ Releases target the public GitHub repository
 
 3. Inspect the complete Git diff and the file list reported by the package
    smoke test.
-4. Confirm that the version and changelog agree and that the npm package name
-   is still available.
+4. Confirm that the version and changelog agree. For the initial release, also
+   confirm that the npm package name is still unclaimed.
 
 ## Initial publication
 
