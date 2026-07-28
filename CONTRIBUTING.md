@@ -37,5 +37,7 @@ Browser runtimes, remote translation services, authentication, SEO routing,
 and product-specific catalog policy belong in adapters or applications.
 New runtime dependencies need a clear correctness or security justification.
 
-Report vulnerabilities using [SECURITY.md](./SECURITY.md). Contributions are
-licensed under the repository's [MIT license](./LICENSE).
+Participation in this project is subject to the
+[Code of Conduct](./CODE_OF_CONDUCT.md). Report vulnerabilities using
+[SECURITY.md](./SECURITY.md). Contributions are licensed under the repository's
+[MIT license](./LICENSE).
