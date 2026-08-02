@@ -222,6 +222,13 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) before changing the HTML or middleware
 contract. Report vulnerabilities privately as described in
 [SECURITY.md](./SECURITY.md).
 
+## Related projects
+
+- [vite-deploy-continuity](https://github.com/seoulpro/vite-deploy-continuity) — serving
+  built assets coherently across deployments of the same static site.
+- [playwright-render-contract](https://github.com/seoulpro/playwright-render-contract) —
+  verifying the localized HTML renders and behaves as intended.
+
 ## License
 
 [MIT](./LICENSE)
