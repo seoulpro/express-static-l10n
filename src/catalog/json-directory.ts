@@ -1,7 +1,15 @@
+import { constants } from "node:fs";
 import type { Stats } from "node:fs";
-import { readFile, realpath, stat } from "node:fs/promises";
+import { open, realpath, stat } from "node:fs/promises";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 
+import {
+  assertFileSize,
+  DEFAULT_MAX_BUNDLES,
+  DEFAULT_MAX_CATALOG_BYTES,
+  positiveSafeInteger,
+  readBoundedUtf8
+} from "../core/limits.js";
 import type {
   CatalogMessages,
   CatalogProvider,
@@ -100,7 +108,13 @@ export function jsonDirectory(options: JsonDirectoryOptions): CatalogProvider {
     throw new TypeError("jsonDirectory options must be an object");
   }
   for (const key of Object.keys(options)) {
-    if (key !== "root" && key !== "onError" && key !== "fileName") {
+    if (
+      key !== "root" &&
+      key !== "onError" &&
+      key !== "fileName" &&
+      key !== "maxBytes" &&
+      key !== "maxBundles"
+    ) {
       throw new TypeError(`Unknown jsonDirectory option: ${key}`);
     }
   }
@@ -127,6 +141,16 @@ export function jsonDirectory(options: JsonDirectoryOptions): CatalogProvider {
     return rootRealPath;
   };
   const onError = options.onError ?? "throw";
+  const maxBytes = positiveSafeInteger(
+    "jsonDirectory maxBytes",
+    options.maxBytes,
+    DEFAULT_MAX_CATALOG_BYTES
+  );
+  const maxBundles = positiveSafeInteger(
+    "jsonDirectory maxBundles",
+    options.maxBundles,
+    DEFAULT_MAX_BUNDLES
+  );
   const fileName =
     options.fileName ??
     ((locale: string, bundle?: string) =>
@@ -173,16 +197,34 @@ export function jsonDirectory(options: JsonDirectoryOptions): CatalogProvider {
     if (!isWithin(await getRootRealPath(), filePath)) {
       throw new TypeError(`Catalog path escapes root: ${requestedPath}`);
     }
-    if (
-      previous &&
-      previous.mtimeMs === metadata.mtimeMs &&
-      previous.size === metadata.size
-    ) {
-      return previous.value;
-    }
-
     try {
-      const source = await readFile(filePath, "utf8");
+      const handle = await open(
+        filePath,
+        constants.O_RDONLY | constants.O_NOFOLLOW
+      );
+      let source: string;
+      try {
+        metadata = await handle.stat();
+        if (!metadata.isFile()) {
+          return null;
+        }
+        assertFileSize("catalog", metadata.size, maxBytes);
+        if (
+          previous &&
+          previous.mtimeMs === metadata.mtimeMs &&
+          previous.size === metadata.size
+        ) {
+          return previous.value;
+        }
+        ({ metadata, source } = await readBoundedUtf8(
+          handle,
+          "catalog",
+          maxBytes,
+          metadata
+        ));
+      } finally {
+        await handle.close();
+      }
       const messages = asCatalog(JSON.parse(source), filePath);
       const value: FileSnapshot = {
         messages,
@@ -209,6 +251,11 @@ export function jsonDirectory(options: JsonDirectoryOptions): CatalogProvider {
     ): Promise<CatalogSnapshot | null> {
       if (!Array.isArray(bundles)) {
         throw new TypeError("bundles must be an array");
+      }
+      if (bundles.length > maxBundles) {
+        throw new RangeError(
+          `bundle count ${bundles.length} exceeds maxBundles ${maxBundles}`
+        );
       }
       assertSafeIdentifier("locale", locale);
       for (const bundle of bundles) {

@@ -37,6 +37,10 @@ export interface JsonDirectoryOptions {
    * Without bundles, it is `<root>/<locale>.json`.
    */
   fileName?: (locale: string, bundle?: string) => string;
+  /** Maximum bytes read from one catalog file. Defaults to 1 MiB. */
+  maxBytes?: number;
+  /** Maximum bundle names accepted by one load. Defaults to 32. */
+  maxBundles?: number;
 }
 
 export type LocaleDetectionSource = "query" | "cookie" | "header";
@@ -100,6 +104,10 @@ export interface LocalizedStaticOptions {
   missingKey?: MissingKeyPolicy;
   translatableAttributes?: readonly string[];
   cache?: boolean | ResponseCacheOptions;
+  /** Maximum bytes read from one HTML file. Defaults to 2 MiB. */
+  maxHtmlBytes?: number;
+  /** Maximum unique configured and page-declared bundles. Defaults to 32. */
+  maxBundles?: number;
 }
 
 export type LocalizedStaticMiddleware = RequestHandler & {

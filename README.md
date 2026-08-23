@@ -29,6 +29,7 @@ import { fileURLToPath } from "node:url";
 
 import express from "express";
 import {
+  FileSizeLimitError,
   jsonDirectory,
   localizedStatic
 } from "express-static-l10n";
@@ -48,6 +49,14 @@ app.use(localizedStatic({
 
 // The localization middleware deliberately ignores non-HTML assets.
 app.use(express.static(publicRoot));
+
+app.use((error, _request, response, next) => {
+  if (error instanceof FileSizeLimitError) {
+    response.status(413).json({ code: error.code });
+    return;
+  }
+  next(error);
+});
 
 app.listen(3000);
 ```
@@ -154,7 +163,12 @@ localizedStatic({
   locales: ["en", "ko", "fr"],
   defaultLocale: "en",
   fallbackLocale: "en",
-  catalog: jsonDirectory({ root: "./locales", onError: "throw" }),
+  catalog: jsonDirectory({
+    root: "./locales",
+    onError: "throw",
+    maxBytes: 1_048_576,
+    maxBundles: 32
+  }),
   bundles: ["common"],
   detect: {
     order: ["query", "cookie", "header"],
@@ -164,6 +178,8 @@ localizedStatic({
   persistCookie: { name: "locale", maxAgeSeconds: 2_592_000 },
   missingKey: "source",
   cache: { maxEntries: 100, ttlMs: 60_000 },
+  maxHtmlBytes: 2_097_152,
+  maxBundles: 32,
   fallthrough: true
 });
 ```
@@ -176,6 +192,15 @@ localizedStatic({
   failure. A first failure still throws.
 - `cache: false` disables HTML/response caching. Otherwise both caches are
   bounded LRUs. Catalog versions and HTML mtimes invalidate transformed output.
+- HTML input defaults to a 2 MiB per-file limit and `jsonDirectory` catalogs to
+  1 MiB per file. `maxHtmlBytes` and `jsonDirectory({ maxBytes })` must be
+  positive safe integers. Oversized input throws `FileSizeLimitError` with
+  stable code `ERR_FILE_SIZE_LIMIT`; map it to HTTP 413 in your Express error
+  handler if that is the desired application policy. Catalog `onError: "stale"`
+  may serve the last good snapshot after a later file exceeds its limit.
+- At most 32 unique configured and page-declared bundles are loaded for one
+  response by default. Set `maxBundles` on both the middleware and
+  `jsonDirectory` when choosing another bounded fan-out.
 - The returned middleware has `clearCache()`, which also clears a catalog
   provider that exposes the same method.
 - `persistCookie` appends a `Path=/; SameSite=Lax` cookie. Existing `Set-Cookie`
@@ -198,6 +223,12 @@ configured roots.
 
 Responses include `Content-Language`. `Vary: Cookie, Accept-Language` is
 appended when those detectors are enabled.
+
+File-size checks use metadata from the same open file used for reading. Reads
+stop at the configured ceiling if a file grows, and concurrent file changes are
+rejected rather than cached. The limits bound individual inputs; total request
+cost still depends on bundle count, document structure, translation count, and
+the custom catalog provider, if any.
 
 ## Non-goals
 

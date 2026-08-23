@@ -16,6 +16,8 @@ These choices define the contract:
 - HTML and catalog symlinks cannot escape their configured roots;
 - locale and bundle versions participate in cache keys;
 - HTML and response caches are bounded and can be cleared;
+- HTML and catalog reads have configurable per-file byte ceilings, and bundle
+  fan-out is bounded independently;
 - language and cookie response headers are appended, not replaced;
 - product-specific domains, headers, authentication, data, and SEO policy do
   not belong in the package.
@@ -23,4 +25,5 @@ These choices define the contract:
 The test matrix covers locale negotiation, bundle precedence, interpolation,
 escaping, fallback, catalog corruption, mtime/version refresh, Express 4 and 5,
 header preservation, concurrent locales, path traversal, symlink containment,
-cache clearing, GET, HEAD, fallthrough, and explicit 404 behavior.
+cache clearing, byte and bundle-count boundaries, stale reuse after an
+oversized catalog, GET, HEAD, fallthrough, and explicit 404 behavior.
