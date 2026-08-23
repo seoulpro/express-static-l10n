@@ -16,6 +16,9 @@ npm run verify
 `verify` checks formatting and lint, type-checks, runs the Vitest suite with
 coverage, builds the package, and runs the packaging checks.
 
+Maintainer release checks are documented in
+[`docs/releasing.md`](./docs/releasing.md).
+
 ## Tests
 
 Add a regression test for every behavior change. Use the smallest relevant
