@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { jsonDirectory } from "../src/index.js";
+import { FileSizeLimitError, jsonDirectory } from "../src/index.js";
 
 const temporaryDirectories: string[] = [];
 
@@ -34,6 +34,63 @@ describe("jsonDirectory", () => {
         fileName: "catalog.json"
       } as never)
     ).toThrow("fileName");
+    expect(() => jsonDirectory({ root: "/tmp", maxBytes: 0 })).toThrow(
+      "positive safe integer"
+    );
+    expect(() => jsonDirectory({ root: "/tmp", maxBundles: 1.5 })).toThrow(
+      "positive safe integer"
+    );
+  });
+
+  it("bounds catalog bytes before parsing and exposes a stable error", async () => {
+    const directory = await temporaryDirectory();
+    const sourceText = JSON.stringify({ greeting: "Hello" });
+    await writeFile(join(directory, "en.json"), sourceText);
+
+    await expect(
+      jsonDirectory({
+        root: directory,
+        maxBytes: Buffer.byteLength(sourceText)
+      }).load("en")
+    ).resolves.toMatchObject({ messages: { greeting: "Hello" } });
+
+    const failure = await jsonDirectory({
+      root: directory,
+      maxBytes: Buffer.byteLength(sourceText) - 1
+    })
+      .load("en")
+      .catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(FileSizeLimitError);
+    expect(failure).toMatchObject({
+      code: "ERR_FILE_SIZE_LIMIT",
+      kind: "catalog",
+      byteLength: Buffer.byteLength(sourceText),
+      limit: Buffer.byteLength(sourceText) - 1
+    });
+  });
+
+  it("uses the last good catalog when a later file exceeds the byte limit", async () => {
+    const directory = await temporaryDirectory();
+    const file = join(directory, "en.json");
+    const original = JSON.stringify({ greeting: "Hello" });
+    await writeFile(file, original);
+    const source = jsonDirectory({
+      root: directory,
+      onError: "stale",
+      maxBytes: Buffer.byteLength(original) + 4
+    });
+    const good = await source.load("en");
+
+    await writeFile(file, JSON.stringify({ greeting: "Much longer value" }));
+    await expect(source.load("en")).resolves.toEqual(good);
+  });
+
+  it("bounds catalog bundle fan-out", async () => {
+    const directory = await temporaryDirectory();
+    const source = jsonDirectory({ root: directory, maxBundles: 1 });
+    await expect(source.load("en", ["common", "home"])).rejects.toThrow(
+      "exceeds maxBundles 1"
+    );
   });
 
   it("loads and refreshes versioned JSON catalogs", async () => {

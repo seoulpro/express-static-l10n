@@ -6,6 +6,8 @@ export {
   varyHeadersForDetection
 } from "./core/locale.js";
 export { lookupMessage, resolveMessage } from "./core/messages.js";
+export { FileSizeLimitError } from "./core/limits.js";
+export type { FileSizeLimitKind } from "./core/limits.js";
 export {
   extractI18nBundles,
   InvalidAttributeBindingError,

@@ -1,9 +1,17 @@
+import { constants } from "node:fs";
 import type { Stats } from "node:fs";
-import { readFile, realpath, stat } from "node:fs/promises";
+import { open, realpath, stat } from "node:fs/promises";
 import { extname, isAbsolute, relative, resolve, sep } from "node:path";
 
 import type { Request, RequestHandler } from "express";
 
+import {
+  assertFileSize,
+  DEFAULT_MAX_BUNDLES,
+  DEFAULT_MAX_HTML_BYTES,
+  positiveSafeInteger,
+  readBoundedUtf8
+} from "../core/limits.js";
 import { resolveLocale, varyHeadersForDetection } from "../core/locale.js";
 import {
   extractI18nBundles,
@@ -24,7 +32,6 @@ interface HtmlSource {
 
 interface FileCandidate {
   filePath: string;
-  metadata: Stats;
 }
 
 class LruCache<T> {
@@ -173,7 +180,7 @@ async function resolveHtmlCandidate(
     return null;
   }
 
-  return { filePath: candidateRealPath, metadata };
+  return { filePath: candidateRealPath };
 }
 
 function asMessages(catalog: CatalogSnapshot | null): CatalogMessages {
@@ -198,6 +205,8 @@ function validateOptions(options: LocalizedStaticOptions): {
   maxEntries: number;
   ttlMs: number | undefined;
   cacheEnabled: boolean;
+  maxHtmlBytes: number;
+  maxBundles: number;
 } {
   if (
     typeof options !== "object" ||
@@ -220,7 +229,9 @@ function validateOptions(options: LocalizedStaticOptions): {
     "fallthrough",
     "missingKey",
     "translatableAttributes",
-    "cache"
+    "cache",
+    "maxHtmlBytes",
+    "maxBundles"
   ]);
   for (const key of Object.keys(options)) {
     if (!allowedOptions.has(key)) {
@@ -404,6 +415,16 @@ function validateOptions(options: LocalizedStaticOptions): {
   if (ttlMs !== undefined && (!Number.isFinite(ttlMs) || ttlMs < 0)) {
     throw new TypeError("cache.ttlMs must be a non-negative number");
   }
+  const maxHtmlBytes = positiveSafeInteger(
+    "maxHtmlBytes",
+    options.maxHtmlBytes,
+    DEFAULT_MAX_HTML_BYTES
+  );
+  const maxBundles = positiveSafeInteger(
+    "maxBundles",
+    options.maxBundles,
+    DEFAULT_MAX_BUNDLES
+  );
   if (options.persistCookie !== undefined && options.persistCookie !== false) {
     if (
       typeof options.persistCookie !== "object" ||
@@ -428,7 +449,9 @@ function validateOptions(options: LocalizedStaticOptions): {
     index,
     maxEntries,
     ttlMs,
-    cacheEnabled
+    cacheEnabled,
+    maxHtmlBytes,
+    maxBundles
   };
 }
 
@@ -452,20 +475,35 @@ export function localizedStatic(
   const varyHeaders = varyHeadersForDetection(options.detect);
 
   const readHtml = async (candidate: FileCandidate): Promise<HtmlSource> => {
-    const revision = `${candidate.metadata.mtimeMs}:${candidate.metadata.size}`;
-    const cached = sourceCache.get(candidate.filePath);
-    if (normalized.cacheEnabled && cached && cached.revision === revision) {
-      return cached;
-    }
+    const handle = await open(
+      candidate.filePath,
+      constants.O_RDONLY | constants.O_NOFOLLOW
+    );
+    try {
+      let metadata = await handle.stat();
+      assertFileSize("html", metadata.size, normalized.maxHtmlBytes);
+      let revision = `${metadata.mtimeMs}:${metadata.size}`;
+      const cached = sourceCache.get(candidate.filePath);
+      if (normalized.cacheEnabled && cached && cached.revision === revision) {
+        return cached;
+      }
 
-    const value = {
-      html: await readFile(candidate.filePath, "utf8"),
-      revision
-    };
-    if (normalized.cacheEnabled) {
-      sourceCache.set(candidate.filePath, value);
+      const bounded = await readBoundedUtf8(
+        handle,
+        "html",
+        normalized.maxHtmlBytes,
+        metadata
+      );
+      metadata = bounded.metadata;
+      revision = `${metadata.mtimeMs}:${metadata.size}`;
+      const value = { html: bounded.source, revision };
+      if (normalized.cacheEnabled) {
+        sourceCache.set(candidate.filePath, value);
+      }
+      return value;
+    } finally {
+      await handle.close();
     }
-    return value;
   };
 
   const middleware: RequestHandler = async (
@@ -511,6 +549,11 @@ export function localizedStatic(
         ...(options.bundles ?? []),
         ...extractI18nBundles(source.html)
       ].filter((bundle, index, values) => values.indexOf(bundle) === index);
+      if (bundles.length > normalized.maxBundles) {
+        throw new RangeError(
+          `bundle count ${bundles.length} exceeds maxBundles ${normalized.maxBundles}`
+        );
+      }
       if (
         bundles.some(
           (bundle) =>

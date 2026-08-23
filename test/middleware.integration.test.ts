@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -7,7 +7,11 @@ import express4 from "express4";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { jsonDirectory, localizedStatic } from "../src/index.js";
+import {
+  FileSizeLimitError,
+  jsonDirectory,
+  localizedStatic
+} from "../src/index.js";
 
 const temporaryDirectories: string[] = [];
 let siteRoot: string;
@@ -173,6 +177,12 @@ describe("localizedStatic behavior", () => {
         cache: { ttlMs: -1 }
       })
     ).toThrow("non-negative");
+    expect(() => localizedStatic({ ...base, maxHtmlBytes: 0 })).toThrow(
+      "positive safe integer"
+    );
+    expect(() => localizedStatic({ ...base, maxBundles: 1.5 })).toThrow(
+      "positive safe integer"
+    );
     expect(() =>
       localizedStatic({
         ...base,
@@ -182,6 +192,92 @@ describe("localizedStatic behavior", () => {
         }
       } as never)
     ).toThrow("Unknown persistCookie option");
+  });
+
+  it("bounds HTML before reading and lets applications map the error to 413", async () => {
+    const byteLength = (await stat(join(siteRoot, "index.html"))).size;
+    const exact = express5();
+    exact.use(
+      localizedStatic({
+        root: siteRoot,
+        locales: ["en"],
+        defaultLocale: "en",
+        catalog: jsonDirectory({ root: catalogRoot }),
+        maxHtmlBytes: byteLength
+      })
+    );
+    await request(exact).get("/").expect(200);
+
+    const limited = express5();
+    limited.use(
+      localizedStatic({
+        root: siteRoot,
+        locales: ["en"],
+        defaultLocale: "en",
+        catalog: jsonDirectory({ root: catalogRoot }),
+        maxHtmlBytes: byteLength - 1
+      })
+    );
+    limited.use(
+      (
+        error: unknown,
+        _request: express5.Request,
+        response: express5.Response,
+        _next: express5.NextFunction
+      ) => {
+        if (error instanceof FileSizeLimitError) {
+          response.status(413).json({
+            code: error.code,
+            kind: error.kind,
+            byteLength: error.byteLength,
+            limit: error.limit
+          });
+          return;
+        }
+        response.status(500).end();
+      }
+    );
+
+    const response = await request(limited).get("/").expect(413);
+    expect(response.body).toEqual({
+      code: "ERR_FILE_SIZE_LIMIT",
+      kind: "html",
+      byteLength,
+      limit: byteLength - 1
+    });
+  });
+
+  it("bounds configured and page-declared bundle fan-out", async () => {
+    await writeFile(
+      join(siteRoot, "bundled.html"),
+      `<html><head><meta name="i18n-bundles" content="home"></head></html>`
+    );
+    const app = express5();
+    app.use(
+      localizedStatic({
+        root: siteRoot,
+        locales: ["en"],
+        defaultLocale: "en",
+        catalog: jsonDirectory({ root: catalogRoot }),
+        bundles: ["common"],
+        maxBundles: 1
+      })
+    );
+    app.use(
+      (
+        error: unknown,
+        _request: express5.Request,
+        response: express5.Response,
+        _next: express5.NextFunction
+      ) => {
+        response
+          .status(422)
+          .send(error instanceof Error ? error.message : "Unknown error");
+      }
+    );
+
+    const response = await request(app).get("/bundled.html").expect(422);
+    expect(response.text).toContain("exceeds maxBundles 1");
   });
 
   it("lets the query override cookie and header detection", async () => {
