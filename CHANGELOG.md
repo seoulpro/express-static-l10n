@@ -13,6 +13,8 @@ and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   1 MiB per file, and bundle fan-out to 32. All limits are configurable.
 - `FileSizeLimitError` with stable code `ERR_FILE_SIZE_LIMIT`, byte count, and
   configured limit so applications can map oversized input to HTTP 413.
+- A reproducible transform benchmark covering 100, 1,000, and 10,000 bound
+  elements with fixed synthetic input.
 
 ### Changed
 

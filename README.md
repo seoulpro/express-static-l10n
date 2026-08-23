@@ -242,9 +242,13 @@ SEO URL generation, canonical/hreflang rewriting, ICU/plural rules, or
 ```sh
 npm install
 npm run verify
+npm run benchmark:quick
 ```
 
 The integration suite runs the same middleware against Express 4 and 5.
+`npm run benchmark` measures transform cost at 100, 1,000, and 10,000 bound
+elements using fixed synthetic input. Compare runs on the same machine and
+Node.js version; it excludes filesystem and catalog-provider I/O.
 
 Implementation rationale and the full behavior matrix are recorded in the
 [design notes](./docs/design-notes.md).
