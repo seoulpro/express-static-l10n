@@ -1,6 +1,6 @@
 {
   "name": "express-static-l10n",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Localize existing static HTML at request time with Express.",
   "author": "Sumin Lim <lim@limsumin.com> (https://limsumin.com)",
   "license": "MIT",
