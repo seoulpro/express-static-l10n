@@ -7,6 +7,8 @@ and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-06
+
 ### Added
 
 - Bounded request inputs: HTML defaults to 2 MiB per file, JSON catalogs to
@@ -37,5 +39,6 @@ and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Path, symbolic-link, raw-text, URL-attribute, document-directive, and
   prototype-key safety checks.
 
-[Unreleased]: https://github.com/seoulpro/express-static-l10n/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/seoulpro/express-static-l10n/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/seoulpro/express-static-l10n/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/seoulpro/express-static-l10n/releases/tag/v0.1.0
