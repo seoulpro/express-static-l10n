@@ -1,4 +1,13 @@
-import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  rename,
+  rm,
+  stat,
+  symlink,
+  utimes,
+  writeFile
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -118,6 +127,52 @@ describe("jsonDirectory", () => {
   it("returns null for a missing catalog", async () => {
     const directory = await temporaryDirectory();
     expect(await jsonDirectory({ root: directory }).load("ko")).toBeNull();
+  });
+
+  it("refreshes equal-size atomic replacements with preserved modification time", async () => {
+    const directory = await temporaryDirectory();
+    const file = join(directory, "en.json");
+    const replacement = join(directory, "replacement.json");
+    const timestamp = new Date("2020-01-01T00:00:00Z");
+    await writeFile(file, JSON.stringify({ greeting: "Hello" }));
+    await utimes(file, timestamp, timestamp);
+    const source = jsonDirectory({ root: directory });
+    const first = await source.load("en");
+    const before = await stat(file);
+
+    await writeFile(replacement, JSON.stringify({ greeting: "Hallo" }));
+    await utimes(replacement, timestamp, timestamp);
+    await rename(replacement, file);
+    const after = await stat(file);
+    expect(after.size).toBe(before.size);
+    expect(after.mtimeMs).toBe(before.mtimeMs);
+    expect(after.ino).not.toBe(before.ino);
+
+    const second = await source.load("en");
+    expect(second?.messages).toEqual({ greeting: "Hallo" });
+    expect(second?.version).not.toBe(first?.version);
+    expect(await source.load("en")).toEqual(second);
+  });
+
+  it("refreshes an in-place catalog edit with preserved size and modification time", async () => {
+    const directory = await temporaryDirectory();
+    const file = join(directory, "en.json");
+    const timestamp = new Date("2020-01-01T00:00:00Z");
+    await writeFile(file, JSON.stringify({ greeting: "Hello" }));
+    await utimes(file, timestamp, timestamp);
+    const source = jsonDirectory({ root: directory });
+    const first = await source.load("en");
+    const before = await stat(file);
+
+    await writeFile(file, JSON.stringify({ greeting: "Hallo" }));
+    await utimes(file, timestamp, timestamp);
+    const after = await stat(file);
+    expect(after.size).toBe(before.size);
+    expect(after.mtimeMs).toBe(before.mtimeMs);
+    expect(after.ino).toBe(before.ino);
+    const second = await source.load("en");
+    expect(second?.messages).toEqual({ greeting: "Hallo" });
+    expect(second?.version).not.toBe(first?.version);
   });
 
   it("supports a custom contained file layout", async () => {

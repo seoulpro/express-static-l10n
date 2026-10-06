@@ -7,6 +7,21 @@ and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-06
+
+### Fixed
+
+- Redirect existing HTML directory indexes to trailing-slash URLs before
+  localization, preserving mount prefixes, encoded paths, and query strings
+  so relative assets resolve correctly.
+- Refresh HTML and catalog caches after equal-size file replacements or
+  in-place edits that preserve modification time, and reject metadata changes
+  during bounded reads.
+- Prefer progressively shortened locale tags before base-language fallback,
+  preserving script matches such as `zh-Hant-TW` to `zh-Hant`.
+- Update locked development dependencies to `proxy-addr` 2.0.8 and
+  `source-map-js` 1.2.2 to address their published security advisories.
+
 ## [0.2.0] - 2026-09-06
 
 ### Added
@@ -39,6 +54,7 @@ and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Path, symbolic-link, raw-text, URL-attribute, document-directive, and
   prototype-key safety checks.
 
-[Unreleased]: https://github.com/seoulpro/express-static-l10n/compare/v0.2.0...HEAD
-[0.2.0]: https://github.com/seoulpro/express-static-l10n/compare/v0.1.0...v0.2.0
+[Unreleased]: https://github.com/seoulpro/express-static-l10n/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/seoulpro/express-static-l10n/compare/062578b2f176713b73b9aff68cba93d44258ae7b...v0.2.1
+[0.2.0]: https://github.com/seoulpro/express-static-l10n/compare/v0.1.0...062578b2f176713b73b9aff68cba93d44258ae7b
 [0.1.0]: https://github.com/seoulpro/express-static-l10n/releases/tag/v0.1.0

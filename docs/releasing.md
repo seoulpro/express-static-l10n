@@ -40,11 +40,19 @@ Releases target the public GitHub repository
 
 ## Later releases
 
-After the initial npm package exists, configure npm trusted publishing for a
-dedicated GitHub Actions workflow. Use a protected GitHub environment and
-OIDC instead of a long-lived npm write token. Trusted publishing requires the
-workflow filename and repository metadata to match the npm configuration.
-
 For each release, move the relevant changelog entries from `Unreleased` to a
 dated version, update `package.json`, rerun every release-candidate command,
 and publish only from the reviewed version tag.
+
+Until a dedicated publishing workflow is configured, use a trusted maintainer
+session with npm two-factor authentication. Check `npm whoami` before
+`npm publish --access public`; if authentication has expired, complete
+`npm login` first. Do not put credentials in the repository. After publishing,
+read the version and `gitHead` back from npm and test a clean registry install
+before creating the GitHub release.
+
+[npm trusted publishing](https://docs.npmjs.com/trusted-publishers/) is an
+alternative to manual publication, not a prerequisite already configured by
+this repository. It requires matching package settings and a dedicated
+GitHub Actions workflow. When adopting it, use a protected environment and
+OIDC instead of a long-lived npm write token.

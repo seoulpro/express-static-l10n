@@ -48,6 +48,36 @@ describe("locale negotiation", () => {
     expect(parseAcceptLanguage("ko;q=invalid, en;q=0.5")).toEqual(["en"]);
   });
 
+  it.each([
+    ["zh-Hant-TW", ["zh-Hans", "zh-Hant"], "zh-Hant"],
+    ["sr-Latn-RS", ["sr-Cyrl", "sr-Latn"], "sr-Latn"],
+    ["ZH-hant-tw", ["zh-Hans", "zh-Hant"], "zh-Hant"],
+    ["zh-Hant-TW-x-private", ["zh-Hans", "zh-Hant-TW"], "zh-Hant-TW"],
+    ["zh-Hant-TW-u-nu-hanidec", ["zh-Hans", "zh-Hant-TW"], "zh-Hant-TW"],
+    ["en-AU", ["en-GB", "en"], "en"]
+  ] as const)(
+    "matches progressively shorter tags for %s",
+    (requested, locales, locale) => {
+      expect(
+        resolveLocale(
+          { headers: { "accept-language": requested } },
+          locales,
+          locales[0]
+        )
+      ).toEqual({ locale, requested, source: "header" });
+    }
+  );
+
+  it("keeps regional language fallback and exact matches", () => {
+    const locales = ["en-US", "en-GB"];
+    expect(
+      resolveLocale({ query: { lang: "en" }, headers: {} }, locales, "en-US")
+    ).toEqual({ locale: "en-US", requested: "en", source: "query" });
+    expect(
+      resolveLocale({ headers: { cookie: "locale=EN-gb" } }, locales, "en-US")
+    ).toEqual({ locale: "en-GB", requested: "EN-gb", source: "cookie" });
+  });
+
   it("keeps malformed cookie values non-fatal", () => {
     const cookies = parseCookieHeader(
       "locale=%E0%A4%A; theme=dark; malformed; encoded=hello%20world"

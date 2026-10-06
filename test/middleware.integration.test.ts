@@ -1,4 +1,13 @@
-import { mkdtemp, mkdir, rm, stat, symlink, writeFile } from "node:fs/promises";
+import {
+  mkdtemp,
+  mkdir,
+  rename,
+  rm,
+  stat,
+  symlink,
+  utimes,
+  writeFile
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -94,9 +103,9 @@ function addLocalizedMiddleware(app: Express): Express {
 }
 
 describe.each([
-  ["Express 5", () => express5()],
-  ["Express 4", () => express4()]
-] as const)("%s integration", (_name, createApp) => {
+  ["Express 5", () => express5(), express5.static],
+  ["Express 4", () => express4(), express4.static]
+] as const)("%s integration", (_name, createApp, serveStatic) => {
   it("serves localized static HTML", async () => {
     const response = await request(addLocalizedMiddleware(createApp()))
       .get("/")
@@ -111,6 +120,153 @@ describe.each([
     expect(response.text).toContain(">Shared fallback</p>");
     expect(response.text).toContain('placeholder="검색"');
   });
+
+  it.each(["get", "head"] as const)(
+    "redirects mounted directory indexes for %s while preserving queries",
+    async (method) => {
+      await mkdir(join(siteRoot, "guide notes"));
+      await writeFile(
+        join(siteRoot, "guide notes", "index.html"),
+        '<link rel="stylesheet" href="style.css"><h1 data-i18n="docs.title">Docs</h1>'
+      );
+      await writeFile(
+        join(siteRoot, "guide notes", "style.css"),
+        "h1 { color: red; }"
+      );
+      const app = createApp();
+      app.use(
+        "/site",
+        localizedStatic({
+          root: siteRoot,
+          locales: ["en", "ko"],
+          defaultLocale: "en",
+          catalog: jsonDirectory({ root: catalogRoot })
+        })
+      );
+      app.use("/site", serveStatic(siteRoot));
+      const target = "/site/guide%20notes/?lang=ko&next=%2Fhome%3Fq%3D1";
+      const response = await request(app)
+        [method]("/site/guide%20notes?lang=ko&next=%2Fhome%3Fq%3D1")
+        .expect(301);
+      expect(response.headers.location).toBe(target);
+      if (method === "head") {
+        expect(response.text).toBeUndefined();
+      }
+
+      const page = await request(app).get(target).expect(200);
+      expect(page.headers["content-language"]).toBe("ko");
+      expect(page.text).toContain(">문서</h1>");
+      const cssPath = new URL(
+        "style.css",
+        new URL(target, "https://example.invalid")
+      ).pathname;
+      await request(app).get(cssPath).expect(200, "h1 { color: red; }");
+    }
+  );
+
+  it.each(["/%2Fdocs", "/%2F%2Fdocs"])(
+    "keeps the directory redirect for %s on the current origin",
+    async (path) => {
+      const app = addLocalizedMiddleware(createApp());
+      const query = "?next=https%3A%2F%2Fexample.org%2F";
+      const response = await request(app).get(`${path}${query}`).expect(301);
+      const location = response.headers.location;
+      expect(location).toBe(`${path}/${query}`);
+      if (location === undefined) {
+        throw new Error("Missing redirect location");
+      }
+      const target = new URL(location, "https://example.invalid");
+      expect(target.origin).toBe("https://example.invalid");
+      await request(app).get(`${target.pathname}${target.search}`).expect(200);
+    }
+  );
+
+  it("does not redirect missing indexes, disabled indexes, or paths outside the root", async () => {
+    await mkdir(join(siteRoot, "empty"));
+    const outside = await makeTemporaryDirectory("express-static-outside-");
+    await writeFile(join(outside, "index.html"), "<p>private</p>");
+    await symlink(outside, join(siteRoot, "external"));
+    const app = addLocalizedMiddleware(createApp());
+    for (const path of ["/empty", "/external", "/%2e%2e%2fexternal"]) {
+      const response = await request(app).get(path).expect(418);
+      expect(response.headers.location).toBeUndefined();
+    }
+    await request(app).get("/docs/index.html").expect(200);
+
+    const noIndex = createApp();
+    noIndex.use(
+      localizedStatic({
+        root: siteRoot,
+        locales: ["en"],
+        defaultLocale: "en",
+        catalog: jsonDirectory({ root: catalogRoot }),
+        index: false
+      })
+    );
+    noIndex.use((_request, response) =>
+      response.status(418).send("fallthrough")
+    );
+    const disabled = await request(noIndex).get("/docs?lang=ko").expect(418);
+    expect(disabled.headers.location).toBeUndefined();
+  });
+
+  it("reloads replaced HTML without changing its size or modification time", async () => {
+    const file = join(siteRoot, "index.html");
+    const replacement = join(siteRoot, "replacement.html");
+    const timestamp = new Date("2020-01-01T00:00:00Z");
+    await writeFile(file, "<p>OLD</p>");
+    await utimes(file, timestamp, timestamp);
+    const app = addLocalizedMiddleware(createApp());
+    const before = await stat(file);
+    expect((await request(app).get("/").expect(200)).text).toContain(
+      ">OLD</p>"
+    );
+
+    await writeFile(replacement, "<p>NEW</p>");
+    await utimes(replacement, timestamp, timestamp);
+    await rename(replacement, file);
+    const after = await stat(file);
+    expect(after.size).toBe(before.size);
+    expect(after.mtimeMs).toBe(before.mtimeMs);
+    expect((await request(app).get("/").expect(200)).text).toContain(
+      ">NEW</p>"
+    );
+  });
+
+  it.each(["selected", "fallback"] as const)(
+    "invalidates responses after an equal-size %s catalog replacement",
+    async (kind) => {
+      const timestamp = new Date("2020-01-01T00:00:00Z");
+      const english = join(catalogRoot, "en.json");
+      const korean = join(catalogRoot, "ko.json");
+      await writeFile(english, JSON.stringify({ shared: "OLD" }));
+      await writeFile(korean, JSON.stringify({ home: { title: "OLD" } }));
+      const file = kind === "selected" ? korean : english;
+      await utimes(file, timestamp, timestamp);
+      const app = addLocalizedMiddleware(createApp());
+      const before = await stat(file);
+      const first = await request(app).get("/?lang=ko").expect(200);
+      expect(first.text).toContain(">OLD</h1>");
+      expect(first.text).toContain(">OLD</p>");
+
+      const replacement = join(catalogRoot, "replacement.json");
+      await writeFile(
+        replacement,
+        kind === "selected"
+          ? JSON.stringify({ home: { title: "NEW" } })
+          : JSON.stringify({ shared: "NEW" })
+      );
+      await utimes(replacement, timestamp, timestamp);
+      await rename(replacement, file);
+      const after = await stat(file);
+      expect(after.size).toBe(before.size);
+      expect(after.mtimeMs).toBe(before.mtimeMs);
+      const second = await request(app).get("/?lang=ko").expect(200);
+      expect(second.text).toContain(
+        kind === "selected" ? ">NEW</h1>" : ">NEW</p>"
+      );
+    }
+  );
 });
 
 describe("localizedStatic behavior", () => {

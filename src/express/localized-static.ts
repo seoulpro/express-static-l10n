@@ -5,6 +5,7 @@ import { extname, isAbsolute, relative, resolve, sep } from "node:path";
 
 import type { Request, RequestHandler } from "express";
 
+import { fileRevision } from "../core/file-revision.js";
 import {
   assertFileSize,
   DEFAULT_MAX_BUNDLES,
@@ -32,6 +33,7 @@ interface HtmlSource {
 
 interface FileCandidate {
   filePath: string;
+  redirectPath?: string;
 }
 
 class LruCache<T> {
@@ -152,6 +154,7 @@ async function resolveHtmlCandidate(
   }
 
   let metadata = await safeStat(candidate);
+  let directoryIndex = false;
   if (metadata?.isDirectory()) {
     if (index === false) {
       return null;
@@ -161,6 +164,7 @@ async function resolveHtmlCandidate(
       return null;
     }
     metadata = await safeStat(candidate);
+    directoryIndex = true;
   }
 
   if (!metadata?.isFile() || extname(candidate).toLowerCase() !== ".html") {
@@ -178,6 +182,19 @@ async function resolveHtmlCandidate(
   }
   if (!isWithin(rootRealPath, candidateRealPath)) {
     return null;
+  }
+
+  if (directoryIndex) {
+    const url = new URL(
+      request.originalUrl ?? request.url,
+      "http://express-static-l10n.invalid"
+    );
+    if (!url.pathname.endsWith("/")) {
+      return {
+        filePath: candidateRealPath,
+        redirectPath: `${url.pathname.replace(/^\/+/u, "/")}/${url.search}`
+      };
+    }
   }
 
   return { filePath: candidateRealPath };
@@ -482,7 +499,7 @@ export function localizedStatic(
     try {
       let metadata = await handle.stat();
       assertFileSize("html", metadata.size, normalized.maxHtmlBytes);
-      let revision = `${metadata.mtimeMs}:${metadata.size}`;
+      let revision = fileRevision(metadata);
       const cached = sourceCache.get(candidate.filePath);
       if (normalized.cacheEnabled && cached && cached.revision === revision) {
         return cached;
@@ -495,7 +512,7 @@ export function localizedStatic(
         metadata
       );
       metadata = bounded.metadata;
-      revision = `${metadata.mtimeMs}:${metadata.size}`;
+      revision = fileRevision(metadata);
       const value = { html: bounded.source, revision };
       if (normalized.cacheEnabled) {
         sourceCache.set(candidate.filePath, value);
@@ -531,6 +548,11 @@ export function localizedStatic(
         } else {
           next();
         }
+        return;
+      }
+
+      if (candidate.redirectPath !== undefined) {
+        response.redirect(301, candidate.redirectPath);
         return;
       }
 

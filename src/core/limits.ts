@@ -1,6 +1,8 @@
 import type { Stats } from "node:fs";
 import type { FileHandle } from "node:fs/promises";
 
+import { fileRevision } from "./file-revision.js";
+
 export const DEFAULT_MAX_HTML_BYTES = 2 * 1024 * 1024;
 export const DEFAULT_MAX_CATALOG_BYTES = 1024 * 1024;
 export const DEFAULT_MAX_BUNDLES = 32;
@@ -73,10 +75,7 @@ export async function readBoundedUtf8(
     throw new FileSizeLimitError(kind, Math.max(offset, metadata.size), limit);
   }
   if (
-    metadata.dev !== initialMetadata.dev ||
-    metadata.ino !== initialMetadata.ino ||
-    metadata.size !== initialMetadata.size ||
-    metadata.mtimeMs !== initialMetadata.mtimeMs ||
+    fileRevision(metadata) !== fileRevision(initialMetadata) ||
     offset !== metadata.size
   ) {
     throw new Error(

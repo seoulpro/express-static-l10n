@@ -3,6 +3,7 @@ import type { Stats } from "node:fs";
 import { open, realpath, stat } from "node:fs/promises";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 
+import { fileRevision } from "../core/file-revision.js";
 import {
   assertFileSize,
   DEFAULT_MAX_BUNDLES,
@@ -23,8 +24,7 @@ interface FileSnapshot {
 }
 
 interface CacheEntry {
-  mtimeMs: number;
-  size: number;
+  revision: string;
   value: FileSnapshot;
 }
 
@@ -209,11 +209,7 @@ export function jsonDirectory(options: JsonDirectoryOptions): CatalogProvider {
           return null;
         }
         assertFileSize("catalog", metadata.size, maxBytes);
-        if (
-          previous &&
-          previous.mtimeMs === metadata.mtimeMs &&
-          previous.size === metadata.size
-        ) {
+        if (previous?.revision === fileRevision(metadata)) {
           return previous.value;
         }
         ({ metadata, source } = await readBoundedUtf8(
@@ -228,11 +224,10 @@ export function jsonDirectory(options: JsonDirectoryOptions): CatalogProvider {
       const messages = asCatalog(JSON.parse(source), filePath);
       const value: FileSnapshot = {
         messages,
-        version: `${metadata.mtimeMs}:${metadata.size}`
+        version: fileRevision(metadata)
       };
       cache.set(requestedPath, {
-        mtimeMs: metadata.mtimeMs,
-        size: metadata.size,
+        revision: value.version,
         value
       });
       return value;
