@@ -1,9 +1,10 @@
 # Design notes
 
-The v0.1 API favors predictable request behavior and explicit failure policy.
+The API favors predictable request behavior and explicit failure policy.
 These choices define the contract:
 
 - query, cookie, header, and default locale resolution are ordered;
+- exact and progressively shortened locale tags precede base-language fallback;
 - malformed percent-encoded cookies do not fail an entire request;
 - an empty string is a valid translation;
 - source HTML is retained for missing keys unless another policy is selected;
@@ -14,7 +15,9 @@ These choices define the contract:
   executable/URL-bearing attributes, and HTTP-equivalent meta content are
   rejected;
 - HTML and catalog symlinks cannot escape their configured roots;
+- contained HTML directory indexes redirect to a trailing-slash URL;
 - locale and bundle versions participate in cache keys;
+- file revisions include identity and change time as well as mtime and size;
 - HTML and response caches are bounded and can be cleared;
 - HTML and catalog reads have configurable per-file byte ceilings, and bundle
   fan-out is bounded independently;
@@ -23,7 +26,9 @@ These choices define the contract:
   not belong in the package.
 
 The test matrix covers locale negotiation, bundle precedence, interpolation,
-escaping, fallback, catalog corruption, mtime/version refresh, Express 4 and 5,
+escaping, fallback, catalog corruption, metadata-preserving file replacement,
+in-place cache refresh, script variants, Express 4 and 5,
 header preservation, concurrent locales, path traversal, symlink containment,
 cache clearing, byte and bundle-count boundaries, stale reuse after an
-oversized catalog, GET, HEAD, fallthrough, and explicit 404 behavior.
+oversized catalog, GET, HEAD, mounted directory redirects, relative assets,
+fallthrough, and explicit 404 behavior.

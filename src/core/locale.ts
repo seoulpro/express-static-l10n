@@ -55,12 +55,19 @@ function supportedLocale(
     canonical: canonicalLocale(locale) ?? locale
   }));
 
-  const exact = normalized.find(
-    ({ canonical }) =>
-      canonical.toLowerCase() === canonicalCandidate.toLowerCase()
-  );
-  if (exact) {
-    return exact.original;
+  const subtags = canonicalCandidate.toLowerCase().split("-");
+  while (subtags.length > 0) {
+    const lookup = subtags.join("-");
+    const match = normalized.find(
+      ({ canonical }) => canonical.toLowerCase() === lookup
+    );
+    if (match) {
+      return match.original;
+    }
+    subtags.pop();
+    if (subtags.at(-1)?.length === 1) {
+      subtags.pop();
+    }
   }
 
   const candidateLanguage = canonicalCandidate.split("-")[0]?.toLowerCase();

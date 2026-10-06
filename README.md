@@ -80,6 +80,16 @@ locales/
 Locale detection is `?lang=` / `?locale=`, then the `locale` cookie, then
 `Accept-Language`, then `defaultLocale`. The order and names are configurable.
 
+Tags are canonicalized, matched exactly, then shortened one subtag at a time.
+For example, `zh-Hant-TW` selects `zh-Hant` before a different Chinese script.
+If no shortened tag matches, the first supported locale with the same base
+language is used. An unmatched candidate falls through to the next detection
+source or `defaultLocale`.
+
+`Accept-Language` candidates are ordered by quality. Wildcards, invalid quality
+values, and `q=0` entries do not supply a candidate; they do not exclude locales
+from a broader language match or the application's default fallback.
+
 A runnable version of this setup, with English and Korean catalogs, lives in
 [`examples/basic-site`](./examples/basic-site/README.md).
 
@@ -128,7 +138,7 @@ Small, explicit interpolation uses JSON parameters:
 ```
 
 Malformed parameter JSON is an error. ICU messages, plural rules, and HTML
-translations are intentionally outside v0.1.
+translations are intentionally outside the package's scope.
 
 ## Bundles
 
@@ -191,7 +201,10 @@ localizedStatic({
   errors. `"stale"` keeps the last successfully parsed snapshot after a later
   failure. A first failure still throws.
 - `cache: false` disables HTML/response caching. Otherwise both caches are
-  bounded LRUs. Catalog versions and HTML mtimes invalidate transformed output.
+  LRUs bounded by entry count. Catalog versions and HTML file revisions
+  invalidate transformed output. File revisions include identity, change time,
+  modification time, and size, so equal-size atomic replacements with preserved
+  modification times are detected.
 - HTML input defaults to a 2 MiB per-file limit and `jsonDirectory` catalogs to
   1 MiB per file. `maxHtmlBytes` and `jsonDirectory({ maxBytes })` must be
   positive safe integers. Oversized input throws `FileSizeLimitError` with
@@ -217,9 +230,12 @@ localizedStatic({
 ## HTTP and filesystem behavior
 
 Only `GET` and `HEAD` requests resolving to `.html` files are handled.
-Directory requests may resolve to `index.html`. Dotfiles are hidden by default,
-decoded traversal is rejected, and HTML or catalog symlinks cannot escape their
-configured roots.
+Directory requests may resolve to `index.html`. An existing, contained HTML
+index at `/guide` redirects with HTTP 301 to `/guide/` before localization, so
+relative assets resolve beneath that directory. Mount prefixes, encoded paths,
+and query strings are preserved. Missing or disabled indexes do not redirect.
+Dotfiles are hidden by default, decoded traversal is rejected, and HTML or
+catalog symlinks cannot escape their configured roots.
 
 Responses include `Content-Language`. `Vary: Cookie, Accept-Language` is
 appended when those detectors are enabled.
@@ -228,13 +244,16 @@ File-size checks use metadata from the same open file used for reading. Reads
 stop at the configured ceiling if a file grows, and concurrent file changes are
 rejected rather than cached. The limits bound individual inputs; total request
 cost still depends on bundle count, document structure, translation count, and
-the custom catalog provider, if any.
+the custom catalog provider, if any. These limits do not cap translated output,
+total cache bytes, or document nesting depth. Metadata-based file revisions are
+not content hashes; use `clearCache()` when deployment storage cannot reliably
+report file changes.
 
 ## Non-goals
 
-v0.1 does not provide a client runtime, template engine, remote translation
-API, build-time generator, authentication integration, automatic translation,
-SEO URL generation, canonical/hreflang rewriting, ICU/plural rules, or
+The package does not provide a client runtime, template engine, remote
+translation API, build-time generator, authentication integration, automatic
+translation, SEO URL generation, canonical/hreflang rewriting, ICU/plural rules, or
 `data-i18n-html`.
 
 ## Development

@@ -1,4 +1,11 @@
-import { appendFile, mkdtemp, open, rm, writeFile } from "node:fs/promises";
+import {
+  appendFile,
+  mkdtemp,
+  open,
+  rm,
+  utimes,
+  writeFile
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -35,6 +42,27 @@ it("bounds a file that grows after its descriptor is inspected", async () => {
       byteLength: 12,
       limit: 2
     });
+  } finally {
+    await handle.close();
+  }
+});
+
+it("rejects an in-place change even when size and modification time are preserved", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "static-l10n-limit-"));
+  temporaryDirectories.push(directory);
+  const file = join(directory, "catalog.json");
+  const timestamp = new Date("2020-01-01T00:00:00Z");
+  await writeFile(file, "OLD", "utf8");
+  await utimes(file, timestamp, timestamp);
+
+  const handle = await open(file, "r");
+  try {
+    const metadata = await handle.stat();
+    await writeFile(file, "NEW", "utf8");
+    await utimes(file, timestamp, timestamp);
+    await expect(
+      readBoundedUtf8(handle, "catalog", metadata.size, metadata)
+    ).rejects.toThrow("file changed while reading");
   } finally {
     await handle.close();
   }
